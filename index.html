@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEROSPACE — Interactive 3D Space Explorer</title>
+  <meta name="description" content="A cinematic interactive 3D solar system explorer with procedural textures, bloom effects, and real astronomical data.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Import Map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <!-- WebGL Fallback -->
+  <div id="webgl-fallback">
+    <h1 style="font-family: var(--font-heading); margin-bottom: 16px; color: var(--accent);">AEROSPACE</h1>
+    <p>WebGL is not supported or unavailable in your browser. Please try a modern browser like Chrome, Firefox, or Edge.</p>
+  </div>
+
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loading-title">AEROSPACE</div>
+    <div class="loading-subtitle">Interactive 3D Space Explorer</div>
+    <div class="loading-bar"><div id="loading-bar-fill"></div></div>
+    <div class="loading-hint">Click anywhere to enter</div>
+  </div>
+
+  <!-- 3D Canvas -->
+  <canvas id="canvas"></canvas>
+
+  <!-- CSS2D Labels container -->
+  <div id="labels"></div>
+
+  <!-- Hover Tooltip -->
+  <div id="hover-tooltip"></div>
+
+  <!-- Tour Caption -->
+  <div id="tour-caption"></div>
+
+  <!-- HUD Overlay -->
+  <div id="hud">
+
+    <!-- Top Bar: Logo + Search + Filters -->
+    <div id="top-bar">
+      <div class="logo">AEROSPACE</div>
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search bodies... ( / )" autocomplete="off">
+        <div id="search-dropdown" class="glass"></div>
+      </div>
+      <div id="filter-chips"></div>
+    </div>
+
+    <!-- Left Panel: Body List -->
+    <div id="left-panel" class="glass">
+      <div id="body-list"></div>
+    </div>
+
+    <!-- Right Panel: Info -->
+    <div id="info-panel" class="glass"></div>
+
+    <!-- Bottom Control Dock -->
+    <div id="control-dock" class="glass"></div>
+
+    <!-- Compare Drawer -->
+    <div id="compare-drawer" class="glass"></div>
+
+    <!-- Scale Note -->
+    <div class="scale-note">Sizes and distances are scaled for visibility; data shown is real.</div>
+
+  </div>
+
+  <!-- App Entry -->
+  <script type="module" src="js/main.js"></script>
+
+</body>
+</html>
