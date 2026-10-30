@@ -20,13 +20,13 @@ import { BODIES, BODY_MAP } from './data.js';
 import { getState, setState, subscribe } from './state.js';
 
 /* ── Constants ───────────────────────────────────────── */
-const CAMERA_FLY_DURATION_MS = 1800;
-const BLOOM_PARAMS = { strength: 1.2, radius: 0.6, threshold: 0.15 };
-const TEX_SIZE = 256;
-const TRAIL_LENGTH = 180;
+const CAMERA_FLY_DURATION_MS = 2200;
+const BLOOM_PARAMS = { strength: 0.6, radius: 0.4, threshold: 0.55 };
+const TEX_SIZE = 512;
+const TRAIL_LENGTH = 220;
 const ASTEROID_COUNT_HIGH = 2500;
 const ASTEROID_COUNT_LOW = 600;
-const STAR_COUNT = [4000, 3000, 2000]; // 3 layers
+const STAR_COUNT = [5000, 3500, 2500]; // 3 layers
 
 /* ── Module state ────────────────────────────────────── */
 let renderer, scene, camera, controls, composer, bloomPass, css2dRenderer;
@@ -111,7 +111,17 @@ export function flyToBody(id, onDone) {
   if (!data) return;
   const targetPos = getBodyWorldPos(id);
   const dist = (data.radiusVisual || 5) * 5;
-  const offset = new THREE.Vector3(dist * 0.6, dist * 0.4, dist);
+  // Offset camera to the SUNLIT side: away from origin (Sun) so we see the lit face
+  const sunDir = targetPos.clone().normalize();
+  // Cross product with up for a nice cinematic angle
+  const side = new THREE.Vector3().crossVectors(sunDir, new THREE.Vector3(0, 1, 0)).normalize();
+  const offset = sunDir.clone().multiplyScalar(dist * 0.8)
+    .add(new THREE.Vector3(0, dist * 0.5, 0))
+    .add(side.multiplyScalar(dist * 0.3));
+  // For the Sun itself, just go above
+  if (id === 'sun' || data.distanceVisual === 0) {
+    offset.set(dist * 0.4, dist * 0.6, dist * 0.8);
+  }
   const to = targetPos.clone().add(offset);
   startFly(camera.position.clone(), to, controls.target.clone(), targetPos, CAMERA_FLY_DURATION_MS, () => {
     followId = id;
@@ -124,7 +134,7 @@ export function flyToBody(id, onDone) {
 
 export function flyToOverview(onDone) {
   followId = null;
-  const to = new THREE.Vector3(0, 120, 220);
+  const to = new THREE.Vector3(40, 150, 260);
   const target = new THREE.Vector3(0, 0, 0);
   startFly(camera.position.clone(), to, controls.target.clone(), target, CAMERA_FLY_DURATION_MS, () => {
     controls.minDistance = 10;
@@ -134,10 +144,10 @@ export function flyToOverview(onDone) {
 }
 
 export function runIntroAnimation(onDone) {
-  camera.position.set(0, 50, 600);
+  camera.position.set(-100, 300, 700);
   controls.target.set(0, 0, 0);
-  const to = new THREE.Vector3(0, 120, 220);
-  startFly(camera.position.clone(), to, controls.target.clone(), new THREE.Vector3(0, 0, 0), 4000, onDone);
+  const to = new THREE.Vector3(40, 150, 260);
+  startFly(camera.position.clone(), to, controls.target.clone(), new THREE.Vector3(0, 0, 0), 4500, onDone);
 }
 
 export function handleResize() {
@@ -230,13 +240,17 @@ function setupPostProcessing() {
 
 function setupLighting() {
   // Sun point light
-  const sunLight = new THREE.PointLight(0xFFF5E0, 3.0, 0, 0); // decay 0
+  const sunLight = new THREE.PointLight(0xFFF5E0, 2.5, 0, 0); // decay 0
   sunLight.position.set(0, 0, 0);
   scene.add(sunLight);
 
-  // Very low ambient
-  const amb = new THREE.AmbientLight(0x111122, 0.08);
+  // Ambient — enough to see dark sides and ring detail
+  const amb = new THREE.AmbientLight(0x223344, 0.18);
   scene.add(amb);
+
+  // Faint hemispheric fill for realism
+  const hemi = new THREE.HemisphereLight(0x334466, 0x111111, 0.08);
+  scene.add(hemi);
 }
 
 /* ── Internal: Procedural textures ───────────────────── */
@@ -661,9 +675,9 @@ function buildSun(group, data) {
 
   // Glow sprites (layered additive)
   const glowTex = generateGlowTexture(256);
-  const glowSizes = [40, 60, 90];
-  const glowOpacities = [0.4, 0.2, 0.1];
-  const glowColors = [0xFFCC44, 0xFF8800, 0xFF4400];
+  const glowSizes = [55, 80, 120];
+  const glowOpacities = [0.35, 0.18, 0.08];
+  const glowColors = [0xFFDD55, 0xFF9922, 0xFF5500];
 
   glowSizes.forEach((size, i) => {
     const spriteMat = new THREE.SpriteMaterial({
@@ -835,7 +849,7 @@ function buildPlanet(group, data) {
   return mesh;
 }
 
-function buildOrbitLine(distance, opacity = 0.2) {
+function buildOrbitLine(distance, opacity = 0.35) {
   const pts = [];
   for (let i = 0; i <= 256; i++) {
     const a = (i / 256) * Math.PI * 2;
@@ -843,7 +857,7 @@ function buildOrbitLine(distance, opacity = 0.2) {
   }
   const geo = new THREE.BufferGeometry().setFromPoints(pts);
   const mat = new THREE.LineBasicMaterial({
-    color: 0x4488AA,
+    color: 0x3399BB,
     transparent: true,
     opacity: opacity,
     depthWrite: false
@@ -866,42 +880,62 @@ function buildTrail(data) {
 }
 
 /* ── Internal: Starfield ─────────────────────────────── */
+function makeStarTexture(size = 64) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const cx = size / 2;
+  const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.15, 'rgba(255,255,255,0.8)');
+  grad.addColorStop(0.4, 'rgba(200,220,255,0.15)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function buildStarfield() {
   const quality = getState().qualityHigh;
   const counts = quality ? STAR_COUNT : STAR_COUNT.map(c => Math.floor(c / 3));
   const depths = [800, 1200, 1800];
+  const starTex = makeStarTexture(64);
 
   starLayers = depths.map((depth, li) => {
     const count = counts[li];
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
-    const sizes = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      // Distribute on a sphere
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       const r = depth + (Math.random() - 0.5) * 200;
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = r * Math.cos(phi);
-      // Color variation
+      // Color: mix warm/cool stars
       const temp = Math.random();
-      colors[i * 3] = 0.8 + temp * 0.2;
-      colors[i * 3 + 1] = 0.8 + temp * 0.15;
-      colors[i * 3 + 2] = 0.9 + temp * 0.1;
-      sizes[i] = 0.5 + Math.random() * 1.5;
+      if (temp > 0.85) {
+        colors[i*3]=1; colors[i*3+1]=0.7; colors[i*3+2]=0.4; // warm orange
+      } else if (temp > 0.7) {
+        colors[i*3]=0.7; colors[i*3+1]=0.8; colors[i*3+2]=1; // cool blue
+      } else {
+        colors[i*3]=0.9+temp*0.1; colors[i*3+1]=0.9+temp*0.08; colors[i*3+2]=0.95+temp*0.05;
+      }
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     const mat = new THREE.PointsMaterial({
-      size: 1.2 - li * 0.2,
+      size: 2.0 - li * 0.3,
+      map: starTex,
       vertexColors: true,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.9,
       depthWrite: false,
-      sizeAttenuation: false
+      sizeAttenuation: false,
+      blending: THREE.AdditiveBlending
     });
     const points = new THREE.Points(geo, mat);
     scene.add(points);
@@ -912,28 +946,30 @@ function buildStarfield() {
 
 /* ── Internal: Galaxy backdrop ───────────────────────── */
 function buildGalaxy() {
-  const count = 15000;
+  const count = 20000;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
   const arms = 4;
+  const starTex = makeStarTexture(32);
   for (let i = 0; i < count; i++) {
     const arm = i % arms;
     const t = Math.random();
-    const dist = t * 600 + 300;
+    const dist = t * 400 + 80;
     const armAngle = (arm / arms) * Math.PI * 2;
-    const spiralAngle = t * Math.PI * 3;
+    const spiralAngle = t * Math.PI * 3.5;
     const angle = armAngle + spiralAngle;
-    const spread = (1 - t * 0.5) * 40;
+    const spread = (1 - t * 0.5) * 30;
     const x = Math.cos(angle) * dist + (Math.random() - 0.5) * spread;
-    const y = (Math.random() - 0.5) * 15 * (1 - t);
+    const y = (Math.random() - 0.5) * 8 * (1 - t * 0.7);
     const z = Math.sin(angle) * dist + (Math.random() - 0.5) * spread;
+    // Place galaxy FAR below and behind — never overlapping the solar system
     positions[i * 3] = x;
-    positions[i * 3 + 1] = y - 200;
-    positions[i * 3 + 2] = z - 500;
-    // Color: inner warm, outer cool
+    positions[i * 3 + 1] = y - 900;
+    positions[i * 3 + 2] = z - 1200;
+    // Color: warm core → blue arms
     const warmth = 1 - t;
-    colors[i * 3] = 0.4 + warmth * 0.5;
-    colors[i * 3 + 1] = 0.3 + warmth * 0.3;
+    colors[i * 3] = 0.5 + warmth * 0.5;
+    colors[i * 3 + 1] = 0.3 + warmth * 0.4;
     colors[i * 3 + 2] = 0.6 + (1 - warmth) * 0.4;
   }
   const geo = new THREE.BufferGeometry();
@@ -941,9 +977,10 @@ function buildGalaxy() {
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
     size: 1.5,
+    map: starTex,
     vertexColors: true,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.45,
     depthWrite: false,
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending
@@ -980,7 +1017,7 @@ function buildNebulae() {
     const sprite = new THREE.Sprite(mat);
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.random() * Math.PI;
-    const r = 500 + Math.random() * 500;
+    const r = 700 + Math.random() * 600;
     sprite.position.set(
       r * Math.sin(phi) * Math.cos(theta),
       r * Math.sin(phi) * Math.sin(theta) - 100,
@@ -1010,9 +1047,9 @@ function buildBlackHole() {
   // Photon ring
   const prGeo = new THREE.TorusGeometry(bhData.radiusVisual * 1.3, 0.3, 16, 64);
   const prMat = new THREE.MeshBasicMaterial({
-    color: 0xFFCC44,
+    color: 0xFF8800,
     transparent: true,
-    opacity: 0.8
+    opacity: 0.9
   });
   const prMesh = new THREE.Mesh(prGeo, prMat);
   prMesh.rotation.x = Math.PI / 2;
@@ -1048,8 +1085,8 @@ function buildBlackHole() {
         // One side brighter (doppler beaming)
         float doppler = 0.6 + 0.4 * sin(angle - uTime * 0.3);
         float intensity = (0.5 + n * 0.5) * doppler;
-        vec3 innerColor = vec3(1.0, 0.8, 0.3);
-        vec3 outerColor = vec3(0.8, 0.2, 0.05);
+        vec3 innerColor = vec3(1.0, 0.6, 0.15);
+        vec3 outerColor = vec3(0.6, 0.08, 0.02);
         float t = (dist - 9.0) / 15.0;
         vec3 col = mix(innerColor, outerColor, clamp(t, 0.0, 1.0)) * intensity;
         float alpha = (1.0 - t * 0.7) * intensity * 0.9;
@@ -1069,14 +1106,14 @@ function buildBlackHole() {
   const glowTex = generateGlowTexture(128);
   const glowMat = new THREE.SpriteMaterial({
     map: glowTex,
-    color: 0xFF6600,
+    color: 0xFF4400,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0.25,
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
   const glowSprite = new THREE.Sprite(glowMat);
-  glowSprite.scale.set(40, 40, 1);
+  glowSprite.scale.set(35, 35, 1);
   group.add(glowSprite);
 
   scene.add(group);
@@ -1186,9 +1223,20 @@ function updateBodies(t) {
       cm.rotation.y = t * 0.6;
     }
 
-    // Label visibility
+    // Label visibility — hide when too far or too close to prevent overlap
     if (bm.label) {
-      bm.label.visible = st.showLabels;
+      if (!st.showLabels) {
+        bm.label.visible = false;
+      } else {
+        const worldPos = new THREE.Vector3();
+        bm.group.getWorldPosition(worldPos);
+        const dist = camera.position.distanceTo(worldPos);
+        const screenSize = (data.radiusVisual || 1) / dist;
+        // Hide labels that are too small on screen (far away and tiny)
+        // But always show the selected body's label
+        const isSelected = st.selectedId === data.id;
+        bm.label.visible = isSelected || screenSize > 0.003;
+      }
     }
   }
 }
@@ -1202,7 +1250,7 @@ function updateSun(t) {
   // Pulse glow
   sunGlowSprites.forEach((s, i) => {
     const pulse = 1 + Math.sin(t * 0.5 + i * 1.5) * 0.08;
-    const baseSize = [40, 60, 90][i];
+    const baseSize = [55, 80, 120][i];
     s.scale.set(baseSize * pulse, baseSize * pulse, 1);
   });
 

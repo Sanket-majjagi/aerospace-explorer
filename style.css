@@ -79,6 +79,15 @@ html, body {
   pointer-events: none;
 }
 
+/* Hide HUD until intro completes */
+#hud {
+  opacity: 0;
+  transition: opacity 1s ease 0.3s;
+}
+#hud.visible {
+  opacity: 1;
+}
+
 .loading-title {
   font-family: var(--font-heading);
   font-size: clamp(32px, 6vw, 72px);

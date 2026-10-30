@@ -44,6 +44,7 @@ async function main() {
     loadingScreen.classList.add('fade-out');
     setTimeout(() => {
       loadingScreen.style.display = 'none';
+      document.getElementById('hud').classList.add('visible');
       setState({ introComplete: true });
     }, 800);
   };

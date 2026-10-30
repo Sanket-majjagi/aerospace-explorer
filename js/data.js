@@ -20,7 +20,7 @@ export const BODIES = [
     name: 'Sun',
     type: 'Star',
     parent: null,
-    radiusVisual: 12,
+    radiusVisual: 16,
     distanceVisual: 0,
     diameterKm: 1392700,
     distanceMKm: 0,
